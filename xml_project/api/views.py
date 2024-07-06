@@ -5,15 +5,19 @@ from django.shortcuts import render
 import uuid
 import os
 
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import HelloWorldSerializer, MessageSerializer, ZeekControlSerializer, ZeekSignatureSerializer
 from .service.zeek_command import ZeekCommand
+from .config import config
+from .data_transfer_object.response import ResponseData
+
 
 class HelloWorldView(APIView):
     def get(self, request):
-        data = {"message": "Hello World"}
+        data = {"message": config.GREETING_NAME}
         serializer = HelloWorldSerializer(data=data)
         if serializer.is_valid():
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -41,7 +45,7 @@ class ZeekControlView(APIView):
                 command = serializer.validated_data['command']
                 
                 zeek = ZeekCommand()
-                result = zeek.run_command(command, zeekctl_path="/opt/zeek/bin/zeekctl")
+                result = zeek.run_command(command, zeekctl_path=config.ZEEKCTL_PATH)
                 print(result)
                 
                 response_data = {
@@ -72,7 +76,7 @@ class ZeekSignatureView(APIView):
                 sig_payload = serializer.validated_data['sig_payload']
                 event_message = serializer.validated_data['sig_event']
                 unique_id = uuid.uuid4()
-                pcap_file = "/home/wahyu/python/pcap_file/http.cap"
+                pcap_file = config.PCAP_FILE_PATH
                 file_script_directory = "/home/wahyu/python/zeek-signature/signature"
                 execution_path = "/home/wahyu/python/zeek-signature/logs"
                 
@@ -97,21 +101,10 @@ class ZeekSignatureView(APIView):
                 zeek.create_zeek_script_file(sig_file_name, zeek_file_name, signature_content, zeek_script_content, file_script_directory)
                 zeek.execute_pcap(pcap_file, zeek_file_name, execution_path, file_script_directory)
             
-                
-                response_data = {
-                    "is_success": True,
-                    "message": "success",
-                    "error_message": "",
-                    "detail" : ""
-                }
-                return Response(response_data, status=status.HTTP_201_CREATED)
+                response_data = ResponseData()
+                return Response(response_data.to_dict(), status=status.HTTP_201_CREATED)
             except Exception as e:
                 print(f"An error occurred: {e}")
-                response_data = {
-                    "is_success": False,
-                    "message": "failure",
-                    "error_message" : f"An error occurred: {e}",
-                    "detail" : ""
-                }
-                Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+                response_data = ResponseData(False, "failure", f"An error occurred: {e}")
+                Response(response_data.to_dict(), status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
